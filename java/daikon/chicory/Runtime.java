@@ -265,6 +265,76 @@ public class Runtime
     }
 
     /**
+     * Called when a method throws an Exception.
+     *
+     * @param obj        -  Receiver of the method that was entered.  Null if method is
+     *                      static
+     * @param nonce       - Nonce identifying which enter/throw pair this is
+     * @param mi_index    - Index in methods of the MethodInfo for this method
+     * @param args        - Array of arguments to method
+     * @param exception_val - thrown Exception
+     */
+    public static synchronized void exitThrow(/*@Nullable*/ Object obj, int nonce, int mi_index,
+                            Object[] args, Exception exception_val) {
+      
+      if (debug) {
+          MethodInfo mi = methods.get(mi_index);
+          method_indent = method_indent.substring(2);
+          System.out.printf("%smethod_throw  %s.%s%n", method_indent, mi.class_info.class_name, mi.method_name);
+      }
+
+      if (dontProcessPpts())
+        return;
+
+      // Make sure that the in_dtrace flag matches the stack trace
+      // check_in_dtrace();
+
+      // Ignore this call if we are already processing a dtrace record
+      if (in_dtrace)
+        return;
+
+      // Note that we are processing a dtrace record until we return
+      in_dtrace = true;
+      try {
+
+        int num_new_classes = 0;
+        synchronized (new_classes) {
+          num_new_classes = new_classes.size();
+        }
+        if (num_new_classes > 0)
+          process_new_classes();
+
+        // Skip this call if it was not sampled at entry to the method
+        if (sample_start > 0) {
+          CallInfo ci = null;
+          @SuppressWarnings("nullness") // map: key was put in map by enter()
+          /*@NonNull*/ Stack<CallInfo> callstack
+              = thread_to_callstack.get (Thread.currentThread());
+          while (!callstack.empty()) {
+            ci = callstack.pop();
+            if (ci.nonce == nonce)
+              break;
+          }
+          if (ci == null) {
+            System.out.printf ("no enter for throwExit %s%n", methods.get(mi_index));
+            return;
+          } else if (!ci.captured) {
+            return;
+          }
+        }
+
+        // Write out the infromation for this method
+        MethodInfo mi = methods.get(mi_index);
+        // long start = System.currentTimeMillis();
+        dtrace_writer.methodThrow(mi, nonce, obj, args, exception_val);
+        // long duration = System.currentTimeMillis() - start;
+        // System.out.println ("Exit " + mi + " " + duration + "ms");
+      } finally {
+        in_dtrace = false;
+      }
+    }
+    
+    /**
      * Called when a method is exited.
      *
      * @param obj        -  Receiver of the method that was entered.  Null if method is
@@ -426,6 +496,8 @@ public class Runtime
         {
             mi.traversalEnter = RootInfo.enter_process(mi, Runtime.nesting_depth);
             mi.traversalExit = RootInfo.exit_process(mi, Runtime.nesting_depth);
+
+            mi.traversalThrow = RootInfo.throw_process(mi, Runtime.nesting_depth);
         }
 
         decl_writer.printDeclClass (class_info, comp_info);

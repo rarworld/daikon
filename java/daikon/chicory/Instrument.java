@@ -21,6 +21,8 @@ import org.apache.commons.bcel6.generic.InstructionFactory;
 import org.apache.commons.bcel6.generic.*;
 import org.apache.commons.bcel6.verifier.VerificationResult;
 
+import com.sun.istack.internal.NotNull;
+
 import sun.nio.cs.ext.ISCII91;
 
 import daikon.util.SimpleLog;
@@ -624,7 +626,7 @@ public class Instrument implements ClassFileTransformer {
 
         Iterator<Boolean> shouldIncIter = mi.is_included.iterator();
         Iterator<Integer> exitIter = mi.exit_locations.iterator();
-
+        
         // Loop through each instruction looking for the return(s)
         for (InstructionHandle ih = il.getStart(); ih != null; ) {
           InstructionList new_il = null;
@@ -634,6 +636,16 @@ public class Instrument implements ClassFileTransformer {
           new_il = add_return_instrumentation(fullClassName, inst, context,
                                                shouldIncIter, exitIter);
 
+          // If not Return maybe it is an Throw
+          if(new_il == null){
+        	  if(inst.getOpcode() == Constants.ATHROW){ 
+        		  if (debug) {
+        			  out.format ("FOUND A THROW");
+        		  }
+        		  new_il = add_throw_instrumentation(fullClassName, inst, context);
+        	  }
+          }
+          
           // Remember the next instruction to process
           InstructionHandle next_ih = ih.getNext();
 
@@ -814,9 +826,74 @@ public class Instrument implements ClassFileTransformer {
 
     if (!exitIter.hasNext())
       throw new RuntimeException("Not enough exit locations in the exitIter");
-
+    
     il.append(call_enter_exit(c, "exit", exitIter.next()));
     return(il);
+  }
+  
+  /**
+   * Transforms return instructions to first assign the Exception to a local
+   * variable (exception__$trace2_val) and then do the return.  Also, calls
+   * Runtime.throw() immediately before the return.
+   */
+  private /*@Nullable*/ InstructionList
+  add_throw_instrumentation (String fullClassName, Instruction inst,
+      MethodContext c) {
+
+    switch (inst.getOpcode()) {
+
+    case Constants.ATHROW:
+      break;
+
+    default:
+      return (null);
+    }
+
+    if(!Chicory.exception_handling){
+    	return (null);
+    }
+    
+    Type type = Type.getType(Exception.class);
+    InstructionList il = new InstructionList();
+    LocalVariableGen throw_loc = get_throw_local(c.mgen, type);
+    il.append(InstructionFactory.createDup(type.getSize()));
+    il.append(InstructionFactory.createStore(type, throw_loc.getIndex()));
+    
+    il.append(call_enter_exit(c, "exitThrow", -1));
+    return(il);
+  }
+
+
+  /**
+   * Returns the local variable used to store the Exception thrown.  If it
+   * is not present, creates it with the Exception type. 
+   */
+  private LocalVariableGen
+  get_throw_local (MethodGen mgen, /*@NotNull*/ Type return_type ) {
+
+    // Find the local used for the return value
+    LocalVariableGen return_local = null;
+    for (LocalVariableGen lv : mgen.getLocalVariables()) {
+      if (lv.getName().equals ("exception__$trace2_val")) {
+        return_local = lv;
+        break;
+      }
+    }
+
+    // If the variable was found, they must match
+    if (return_local != null)
+      assert (return_type.equals(return_local.getType())) :
+      " return_type = " + return_type + "current type = "
+        + return_local.getType();
+
+    
+    if (return_local == null) {
+      // log ("Adding Exception local return__$trace2_val");
+      return_local = mgen.addLocalVariable ("exception__$trace2_val", return_type,
+                                            null, null);
+    }
+
+    return (return_local);
   }
 
 
@@ -1489,14 +1566,29 @@ public class Instrument implements ClassFileTransformer {
       il.append(ifact.createConstant(line));
     }
 
+    // If this is an throwExit, push the Exception.
+    // The Exception value
+    // is stored in the local "exception__$trace2_val"
+    if (method_name.equals ("exitThrow")) {
+      Type exception_type = Type.getType(Exception.class);
+      LocalVariableGen throw_local = get_throw_local(mgen, exception_type);
+      il.append(InstructionFactory.createLoad(exception_type, throw_local.getIndex()));
+    }
+    
+    
     // Call the specified method
     Type[] method_args = null;
-    if (method_name.equals ("exit"))
+    if (method_name.equals ("exit")) {
       method_args = new Type[] {Type.OBJECT, Type.INT, Type.INT,
                                 object_arr_typ, Type.OBJECT, Type.INT};
-    else
-      method_args = new Type[] {Type.OBJECT, Type.INT, Type.INT,
-                                object_arr_typ};
+    }else if (method_name.equals ("exitThrow")) {
+        method_args = new Type[] {Type.OBJECT, Type.INT, Type.INT,
+                object_arr_typ, Type.getType(Exception.class)};
+    } else {
+        method_args = new Type[] {Type.OBJECT, Type.INT, Type.INT,
+                object_arr_typ};
+    }
+    
     il.append(c.ifact.createInvoke(runtime_classname, method_name,
                                      Type.VOID, method_args, Const.INVOKESTATIC));
 

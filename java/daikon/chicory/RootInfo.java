@@ -5,6 +5,8 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
+import org.apache.bcel.generic.Type;
+
 
 /**
  *  This is a subtype of DaikonVariableInfo and is used as a
@@ -70,31 +72,11 @@ public class RootInfo extends DaikonVariableInfo
     {
         debug_vars.clear ("Building exit tree for %s%n", mi);
 
-        RootInfo root = new RootInfo();
-
         // Don't build a tree for class initializers.
         if (mi.is_class_init())
-            return (root);
-
-        // Clear the set of static variables
-        ppt_statics.clear();
-
-        // Print class variables.   Print class variables first because
-        // the depth goes deeper there ('this' is not counted).  This
-        // guarantees that any static variables in the class are found here
-        // and not below.
-        root.addClassVars(mi.class_info,
-                          Modifier.isStatic(mi.member.getModifiers()),
-                          mi.member.getDeclaringClass(),
-                          "",
-                          depth);
-
-        // Print arguments
-        root.addParameters(mi.class_info,
-                           mi.member,
-                           Arrays.<String>asList(mi.arg_names),
-                           /*offset = */ "",
-                           depth);
+            return (new RootInfo());
+        
+        RootInfo root = method_process(mi, depth);
 
         // Print return type information for methods only and not constructors
         if (mi.member instanceof Method)
@@ -118,6 +100,62 @@ public class RootInfo extends DaikonVariableInfo
 
         return root;
     }
+
+    /**
+     * Creates a RootInfo object for a method exitThrow program point.
+     */
+    public static RootInfo throw_process(MethodInfo mi, int depth)
+    {
+        debug_vars.clear ("Building exit tree for %s%n", mi);
+
+        if(!mi.member.toString().contains(" throws "))
+            return (null);
+        
+        // Don't build a tree for class initializers.
+        if (mi.is_class_init())
+            return (new RootInfo());
+        
+        RootInfo root = method_process(mi, depth);
+
+        // add a new ReturnInfo object to the traversal tree
+        Class<?> returnType = Exception.class;
+        DaikonVariableInfo retInfo = new ThrowInfo(returnType);
+        root.addChild(retInfo);
+
+        retInfo.checkForDerivedVariables(returnType, "exception", "");
+
+        retInfo.addChildNodes(mi.class_info, returnType, "exception", "",
+                depth);
+
+        debug_vars.log ("exit throw_process%n");
+
+        return root;
+    }
+
+	private static RootInfo method_process(MethodInfo mi, int depth) {
+		RootInfo root = new RootInfo();
+
+        // Clear the set of static variables
+        ppt_statics.clear();
+
+        // Print class variables.   Print class variables first because
+        // the depth goes deeper there ('this' is not counted).  This
+        // guarantees that any static variables in the class are found here
+        // and not below.
+        root.addClassVars(mi.class_info,
+                          Modifier.isStatic(mi.member.getModifiers()),
+                          mi.member.getDeclaringClass(),
+                          "",
+                          depth);
+
+        // Print arguments
+        root.addParameters(mi.class_info,
+                           mi.member,
+                           Arrays.<String>asList(mi.arg_names),
+                           /*offset = */ "",
+                           depth);
+		return root;
+	}
 
     /**
      * Creates a RootInfo object for an object program point.

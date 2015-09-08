@@ -68,6 +68,13 @@ public class MethodInfo {
    **/
   public /*@MonotonicNonNull*/ RootInfo traversalExit = null;
 
+  /**
+   * The root of the variable tree for the method throw program point(s).
+   *
+   * Set by DeclWriter and read by DTraceWriter.
+   **/
+  public /*@MonotonicNonNull*/ RootInfo traversalThrow = null;
+
   /** The number of times this method has been called **/
   public int call_cnt = 0;
 

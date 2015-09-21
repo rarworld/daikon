@@ -326,7 +326,7 @@ public class DeclWriter extends DaikonWriter {
           print_method (mi, exitRoot, methodExitName(member, exitLoc.intValue()),
                         PptType.SUBEXIT, comp_info);
         }
-        if(mi.traversalThrow != null){
+        if(!mi.throw_locations.isEmpty() || Chicory.exception_handling){
         	RootInfo throwRoot = mi.traversalThrow;
         	print_method (mi, throwRoot,methodThrowName(member),PptType.SUBEXIT, 
         					comp_info);

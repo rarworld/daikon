@@ -7,6 +7,8 @@ import java.util.Set;
 
 import org.apache.bcel.generic.Type;
 
+import daikon.Chicory;
+
 
 /**
  *  This is a subtype of DaikonVariableInfo and is used as a
@@ -108,8 +110,8 @@ public class RootInfo extends DaikonVariableInfo
     {
         debug_vars.clear ("Building exit tree for %s%n", mi);
 
-        if(!mi.member.toString().contains(" throws "))
-            return (null);
+        if(mi.throw_locations.isEmpty() && !Chicory.exception_handling)
+        	return (new RootInfo());
         
         // Don't build a tree for class initializers.
         if (mi.is_class_init())

@@ -114,9 +114,8 @@ public class Chicory {
   @Option ("Number of calls after which sampling will begin")
   public static int sample_start = 0;
 
-
   @Option ("Should Exception Handling be taken care of?")
-  public static boolean exception_handling = true;
+  public static boolean exception_handling = false;
   
   
   @Option ("RemoteDebug Test")

@@ -93,20 +93,22 @@ public abstract class DaikonWriter
     
     /**
      * Returns the program point name the Throw-Method for Daikon
+     * @param lineNum The line number of the throw point of the method -1 for Throws
      * @return the ThrowExit program point name for Daikon
      */
-    private static String methodThrowPointName(){
-    	return Chicory.exception_handling ? "THROWS" : "THROW";
+    private static String methodThrowPointName(int lineNum){
+    	return lineNum < 0 ? "THROWS" : "THROW" + lineNum;
     }
-    
+
     /**
      * Given a method, returns the method exitThrow program point name for Daikon
      * @param method non-null method
+     * @param lineNum The line number of the throw point of the method (-1 for passed Exception)
      * @return the decorated method exitThrow name for Daikon
      */
-    public static String methodThrowName(Member method) {
+    public static String methodThrowName(Member method, int lineNum) {
     	
-        return methodName (method, methodThrowPointName());
+        return methodName (method, methodThrowPointName(lineNum));
     }
 
     /**
@@ -115,12 +117,13 @@ public abstract class DaikonWriter
      * not available
      *
      * @param types Argument types
+     * @param lineNum The line number of the throw point of the method (-1 for passed Exception)
      * @return the decorated method exitThrow name for Daikon
      */
     public static String methodThrowName(String fullClassName, String[] types,
-                                         String name, String short_name)
+                                         String name, String short_name, int lineNum )
     {
-        return methodName(fullClassName, types, name, short_name, methodThrowPointName());
+        return methodName(fullClassName, types, name, short_name, methodThrowPointName(lineNum));
     }
 
     /**

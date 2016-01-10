@@ -25,7 +25,7 @@ public class ThrowInfo extends DaikonVariableInfo
     @Override
     public Object getMyValFromParentVal(Object value)
     {
-        throw new RuntimeException("Don't call getMyValFromParentVal on ReturnInfo objects");
+        throw new RuntimeException("Don't call getMyValFromParentVal on ThrowInfo objects");
     }
 
     public VarKind get_var_kind() {

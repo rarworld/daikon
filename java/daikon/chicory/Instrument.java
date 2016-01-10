@@ -607,6 +607,7 @@ public class Instrument implements ClassFileTransformer {
             Runtime.methods.add(mi);
         }
 
+        // Remember the start of the original Code.
         InstructionHandle try_start = il.getStart();
         
         // Add nonce local to matchup enter/exits
@@ -628,7 +629,9 @@ public class Instrument implements ClassFileTransformer {
 
         Iterator<Boolean> shouldIncIter = mi.is_included.iterator();
         Iterator<Integer> exitIter = mi.exit_locations.iterator();
+        Iterator<Integer> throwIter = mi.throw_locations.iterator();
         
+        List<InstructionHandle> throw_ils = new ArrayList<InstructionHandle>(); 
         // Loop through each instruction looking for the return(s)
         for (InstructionHandle ih = il.getStart(); ih != null; ) {
           InstructionList new_il = null;
@@ -640,7 +643,8 @@ public class Instrument implements ClassFileTransformer {
 
           // If not Return maybe it is an Throw
           if(new_il == null ){
-        	  new_il = add_throw_instrumentation(fullClassName, inst, context);
+        	  new_il = add_throw_instrumentation(fullClassName, inst, context, throwIter);
+        	  if (new_il != null) throw_ils.add(ih);
           }
           
           // Remember the next instruction to process
@@ -702,10 +706,10 @@ public class Instrument implements ClassFileTransformer {
         // we write out the new StackMapTable.
         process_uninitialized_variable_info(il, false);
         print_stack_map_table("Final before Chicory.exception_handling");
-
-        
+ 
         // BEST PLACE FOR TRY CATCH ADDING
         if(Chicory.exception_handling){
+        	// Remember the end of the original Code.
         	InstructionHandle try_end = il.getEnd();
         	InstructionList catch_il = add_tryCatch_instrumentation(fullClassName, context);
 //        	// Is the method the constructor.
@@ -721,11 +725,23 @@ public class Instrument implements ClassFileTransformer {
 //        	}
         	if(catch_il != null){        		
         		try_start = try_start == null ? il.getStart() : try_start;
+        		// Remember the Size of the OriginalCode, to calculate the Offset in the StackMap
         		int tagetIS = il.getByteCode().length;
-//        		InstructionHandle handler = il.insert(try_end.getNext(), catch_il); 
         		InstructionHandle handler =  il.append(try_end, catch_il);
-//        		mg.addExceptionHandler(il.getStart(), try_end, handler, ObjectType.getInstance("java.lang.Exception"));
-        		mg.addExceptionHandler(try_start, try_end, handler, ObjectType.getInstance("java.lang.Exception"));
+        		
+        		//Set the gaps in the ExceptionTable for Throw
+        		if(!throw_ils.isEmpty()){
+	        		InstructionHandle run_start = try_start;
+	        		for (InstructionHandle run_ih : throw_ils) {
+	        			mg.addExceptionHandler(run_start, run_ih.getPrev(), handler, ObjectType.getInstance("java.lang.Exception"));
+						run_start = run_ih.getNext();
+					}
+	        		if(!run_start.equals(handler) || run_start.getPosition() >= 0)
+	        			mg.addExceptionHandler(run_start, try_end, handler, ObjectType.getInstance("java.lang.Exception"));
+        		}else{
+        			mg.addExceptionHandler(try_start, try_end, handler, ObjectType.getInstance("java.lang.Exception"));
+        		}
+        		
         		// ADD StackMapEntry
         	    StackMapTableEntry[] new_map = new StackMapTableEntry[stack_map_table.length + 1];
         	    StackMapType stackItem_type = new StackMapType(Constants.ITEM_Object, pgen.addClass("java.lang.Exception"), pgen.getConstantPool());
@@ -877,10 +893,10 @@ public class Instrument implements ClassFileTransformer {
    */
   private /*@Nullable*/ InstructionList
   add_throw_instrumentation (String fullClassName, Instruction inst,
-      MethodContext c) {
+      MethodContext c, Iterator<Integer> throwIter) {
 
-    if(Chicory.exception_handling)
-    	return (null);
+//    if(Chicory.exception_handling)
+//    	return (null);
     
     switch (inst.getOpcode()) {
       case Constants.ATHROW:
@@ -899,7 +915,10 @@ public class Instrument implements ClassFileTransformer {
     il.append(InstructionFactory.createDup(type.getSize()));
     il.append(InstructionFactory.createStore(type, throw_loc.getIndex()));
     
-    il.append(call_enter_exit(c, "exitThrow", -1));
+    if (!throwIter.hasNext())
+        throw new RuntimeException("Not enough exit locations in the exitIter");
+    
+    il.append(call_enter_exit(c, "exitThrow", throwIter.next()));
     return(il);
   }
 
@@ -1629,13 +1648,16 @@ public class Instrument implements ClassFileTransformer {
       il.append(ifact.createConstant(line));
     }
 
-    // If this is an throwExit, push the Exception.
+    // If this is an throwExit, push the Exception and line number.
     // The Exception value
     // is stored in the local "exception__$trace2_val"
     if (method_name.equals ("exitThrow")) {
       Type exception_type = Type.getType(Exception.class);
       LocalVariableGen throw_local = get_throw_local(mgen, exception_type);
       il.append(InstructionFactory.createLoad(exception_type, throw_local.getIndex()));
+      // push line number
+      // System.out.println(c.mgen.getName() + " --> " + line);
+      il.append(ifact.createConstant(line));
     }
     
     
@@ -1646,7 +1668,7 @@ public class Instrument implements ClassFileTransformer {
                                 object_arr_typ, Type.OBJECT, Type.INT};
     }else if (method_name.equals ("exitThrow")) {
         method_args = new Type[] {Type.OBJECT, Type.INT, Type.INT,
-                object_arr_typ, Type.getType(Exception.class)};
+                object_arr_typ, Type.getType(Exception.class), Type.INT};
     } else {
         method_args = new Type[] {Type.OBJECT, Type.INT, Type.INT,
                 object_arr_typ};
@@ -1898,6 +1920,7 @@ public class Instrument implements ClassFileTransformer {
             break;
           
           case Constants.ATHROW :
+        	// only do incremental lines if we don't have the line generator
         	if (line_number == last_line_number && foundLine == false)
               {
                 line_number++;
@@ -1906,7 +1929,7 @@ public class Instrument implements ClassFileTransformer {
 
             if (!shouldFilter(class_info.class_name, mgen.getName(),
                      DaikonWriter.methodThrowName(class_info.class_name, getArgTypes(mgen),
-                         mgen.toString(), mgen.getName())))
+                         mgen.toString(), mgen.getName(), line_number)))
               {
                 shouldInclude = true;
                 throw_locs.add(new Integer(line_number));

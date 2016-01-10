@@ -494,6 +494,9 @@ public class Chicory {
                              heap_size, cp, daikon_args, output_dir, dtrace_file);
     }
 
+    if(RemoteDebug){
+    	cmdstr = cmdstr.replace("java", "java -agentlib:jdwp=transport=dt_socket,server=y,address=8001,suspend=y");
+    }
     //System.out.println("daikon command is " + daikon_cmd);
     //System.out.println("daikon command cmdstr " + cmdstr);
 

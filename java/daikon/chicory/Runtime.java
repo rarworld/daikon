@@ -273,9 +273,10 @@ public class Runtime
      * @param mi_index    - Index in methods of the MethodInfo for this method
      * @param args        - Array of arguments to method
      * @param exception_val - thrown Exception
+     * @param exitLineNum - The line number at which this method exited by throw (-1 for throws)
      */
     public static synchronized void exitThrow(/*@Nullable*/ Object obj, int nonce, int mi_index,
-                            Object[] args, Exception exception_val) {
+                            Object[] args, Exception exception_val, int exitLineNum) {
       
       if (debug) {
           MethodInfo mi = methods.get(mi_index);
@@ -326,7 +327,7 @@ public class Runtime
         // Write out the infromation for this method
         MethodInfo mi = methods.get(mi_index);
         // long start = System.currentTimeMillis();
-        dtrace_writer.methodThrow(mi, nonce, obj, args, exception_val);
+        dtrace_writer.methodThrow(mi, nonce, obj, args, exception_val, exitLineNum);
         // long duration = System.currentTimeMillis() - start;
         // System.out.println ("Exit " + mi + " " + duration + "ms");
       } finally {

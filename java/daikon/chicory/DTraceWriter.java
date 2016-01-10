@@ -126,7 +126,7 @@ public class DTraceWriter extends DaikonWriter
     /**
      * Prints the method exit program point in the dtrace file
      */
-    public void methodThrow(MethodInfo mi, int nonceVal, /*@Nullable*/ Object obj, Object[] args, Exception exception_val)
+    public void methodThrow(MethodInfo mi, int nonceVal, /*@Nullable*/ Object obj, Object[] args, Exception exception_val, int lineNum)
     {
         if (Runtime.dtrace_closed)
             return;
@@ -139,7 +139,7 @@ public class DTraceWriter extends DaikonWriter
             throw new RuntimeException("Traversal pattern not initialized for method " + mi.method_name);
 
 
-        outFile.println(DaikonWriter.methodThrowName(member));
+        outFile.println(DaikonWriter.methodThrowName(member, lineNum));
         printNonce(nonceVal);
         traverse(mi, root, args, obj, exception_val);
 

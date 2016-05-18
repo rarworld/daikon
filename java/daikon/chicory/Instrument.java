@@ -22,6 +22,7 @@ import org.apache.commons.bcel6.generic.*;
 import org.apache.commons.bcel6.verifier.VerificationResult;
 
 import com.sun.istack.internal.NotNull;
+import com.sun.xml.internal.bind.v2.runtime.unmarshaller.XsiNilLoader.Array;
 
 import sun.nio.cs.ext.ISCII91;
 
@@ -47,7 +48,19 @@ public class Instrument implements ClassFileTransformer {
 
   boolean debug = false;
   boolean log_on = false;
-
+  
+  public static Map<Type, Byte> STACKMAP_TYPE = new HashMap<Type, Byte>();
+  static{
+	STACKMAP_TYPE.put(Type.INT , Constants.ITEM_Integer);
+	STACKMAP_TYPE.put(Type.BOOLEAN , Constants.ITEM_Integer);
+	STACKMAP_TYPE.put(Type.BYTE , Constants.ITEM_Integer);
+	STACKMAP_TYPE.put(Type.CHAR, Constants.ITEM_Integer);
+	STACKMAP_TYPE.put(Type.DOUBLE , Constants.ITEM_Double);
+	STACKMAP_TYPE.put(Type.FLOAT , Constants.ITEM_Float);
+	STACKMAP_TYPE.put(Type.LONG , Constants.ITEM_Long);
+	STACKMAP_TYPE.put(Type.SHORT , Constants.ITEM_Integer);
+	STACKMAP_TYPE.put(Type.VOID , Constants.ITEM_Integer);
+  }
   /** current Constant Pool * */
   static ConstantPoolGen pgen = null;
 
@@ -747,14 +760,104 @@ public class Instrument implements ClassFileTransformer {
         	    StackMapType stackItem_type = new StackMapType(Constants.ITEM_Object, pgen.addClass("java.lang.Exception"), pgen.getConstantPool());
         	    StackMapType[] stackItem_types = {stackItem_type};
         	    
+        	    Stack<StackMapType> localItems_types = new Stack<StackMapType>();
+        	    
+        	    // Start with Parameters as locals
+        	    int newLocalCnt = mg.getArgumentNames().length;
+        	    // ADD THIS 
+        	    if(!mg.isStatic()){
+        	    	newLocalCnt++;
+        	    	localItems_types.push( new StackMapType(Constants.ITEM_Object,
+        	    			pgen.addClass(mg.getClassName()), pgen.getConstantPool()) );
+        	    }
+        	    // ADD PARAMETERS
+        	    for(int tt = 0; tt < mg.getArgumentTypes().length; tt++){
+        	    	Type runType = mg.getArgumentTypes()[tt];
+//        	    	if(!runType.getClass().equals(ObjectType.class) ){ //&& !runType.getClass().equals(BasicType.class) ){
+//        	    			continue;
+//        	    	}
+        	    	if(runType.getClass().equals(BasicType.class)){       	    		
+        	    		Byte tmpTag = STACKMAP_TYPE.get(runType);
+        	    		if(tmpTag == null){
+//        	    			ERROR
+        	    			continue;
+        	    		}
+        	    		localItems_types.push( new StackMapType(tmpTag, -1, pgen.getConstantPool()));
+        	    		continue;
+        	    	}
+        	    	localItems_types.push( new StackMapType(Constants.ITEM_Object,
+        	    			 				pgen.addClass(runType.getSignature()), pgen.getConstantPool()) );
+        	    }
+        	    
+        	    boolean fullFrameFound = false;
+        	    // Keep track of the count of locals
+        	    int runLocalCnt = newLocalCnt;
         	    int offset = 0;
         	    for (int j = 0; j < stack_map_table.length; j++) {
-        	    	offset += stack_map_table[j].getByteCodeOffsetDelta() + 1;
-					new_map[j] = stack_map_table[j];
+        	    	StackMapTableEntry runSME = stack_map_table[j];
+    	    		if( (offset - 1) <= try_start.getPosition() ){
+    	    			newLocalCnt = runLocalCnt;
+    	    		}
+    	    		
+    	    		int runFrameType = runSME.getFrameType();
+					if( runFrameType >= Constants.APPEND_FRAME && runFrameType <= Constants.APPEND_FRAME_MAX){
+						int addCnt = runFrameType - (Constants.APPEND_FRAME  - 1) ;
+						localItems_types.addAll(Arrays.asList(runSME.getTypesOfLocals()));
+						runLocalCnt += addCnt;
+//						localItems_types.push(runSME.getTypesOfLocals()[0]);
+//						runLocalCnt++;
+					}
+
+					if( runFrameType >= Constants.CHOP_FRAME && runFrameType <= Constants.CHOP_FRAME_MAX){
+						int delCnt = (Constants.CHOP_FRAME_MAX + 1) - runFrameType;
+						for (int k = 0; k < delCnt; k++) {
+							localItems_types.pop();
+						}
+						runLocalCnt -= delCnt;
+					}
+    	    		
+					if( runFrameType == Constants.FULL_FRAME){
+						localItems_types.clear();
+						localItems_types.addAll(Arrays.asList(runSME.getTypesOfLocals()));
+						runLocalCnt = localItems_types.size();
+						fullFrameFound = true;
+					}
+					
+        	    	offset += runSME.getByteCodeOffsetDelta() + 1;
+        	    	new_map[j] = runSME;
+//        	    	offset += stack_map_table[j].getByteCodeOffsetDelta() + 1;
+//					new_map[j] = stack_map_table[j];
 				}
         	    int goalOffset = tagetIS - offset;
-        	    new_map[stack_map_table.length] = new StackMapTableEntry(Constants.SAME_LOCALS_1_STACK_ITEM_FRAME + goalOffset, goalOffset , 0,
+//        	    Are the locals the same?
+        	    if(newLocalCnt == runLocalCnt){
+        	    	int tmpTag = (Constants.SAME_LOCALS_1_STACK_ITEM_FRAME + goalOffset) > Constants.SAME_LOCALS_1_STACK_ITEM_FRAME_MAX
+        	    				? Constants.SAME_LOCALS_1_STACK_ITEM_FRAME_EXTENDED
+        	    				: (Constants.SAME_LOCALS_1_STACK_ITEM_FRAME + goalOffset) ;
+        	    	new_map[stack_map_table.length] = new StackMapTableEntry(tmpTag, goalOffset , 0,
         	    		null, 1, stackItem_types, pgen.getConstantPool());
+        	    }else{
+        	    	if(localItems_types.size() >= newLocalCnt){
+	        	    	// Create FULL-FRAME-Entry
+	        	    	int localsCnt = newLocalCnt;
+	        	    	while(localItems_types.size() > localsCnt){
+	        	    		localItems_types.pop();
+	        	    	}
+	        	    	StackMapType[] newlocalItems_types = new StackMapType[localsCnt];
+	        	    	
+	        	    	newlocalItems_types = localItems_types.toArray(newlocalItems_types);
+	        	    	
+	        	    	new_map[stack_map_table.length] = new StackMapTableEntry(Constants.FULL_FRAME, goalOffset , localsCnt,
+	        	    			newlocalItems_types, 1, stackItem_types, pgen.getConstantPool());
+        	    	}else{
+        	    		//ERROR
+            	    	int tmpTag = (Constants.SAME_LOCALS_1_STACK_ITEM_FRAME + goalOffset) > Constants.SAME_LOCALS_1_STACK_ITEM_FRAME_MAX
+        	    				? Constants.SAME_LOCALS_1_STACK_ITEM_FRAME_EXTENDED
+        	    				: (Constants.SAME_LOCALS_1_STACK_ITEM_FRAME + goalOffset) ;
+        	    		new_map[stack_map_table.length] = new StackMapTableEntry(tmpTag, goalOffset , 0,
+                	    		null, 1, stackItem_types, pgen.getConstantPool());
+        	    	}
+        	    }
         	    
         	    stack_map_table = new_map;
         	    

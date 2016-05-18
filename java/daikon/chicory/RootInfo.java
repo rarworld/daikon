@@ -123,12 +123,16 @@ public class RootInfo extends DaikonVariableInfo
         Class<?> returnType = Exception.class;
         DaikonVariableInfo retInfo = new ThrowInfo(returnType);
         root.addChild(retInfo);
-
+        
         retInfo.checkForDerivedVariables(returnType, "exception", "");
 
         retInfo.addChildNodes(mi.class_info, returnType, "exception", "",
                 depth);
-
+        
+        DaikonVariableInfo childClass = new DaikonClassInfo("exception" + class_suffix,
+                classClassName, stringClassName, null, false);
+        retInfo.addChild(childClass);
+        
         debug_vars.log ("exit throw_process%n");
 
         return root;

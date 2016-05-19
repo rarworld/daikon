@@ -1,5 +1,7 @@
-This is the distribution of the Daikon invariant detector,
-Daikon version 5.2.11, released August 5, 2015.
+This is the distribution of a fork of the Daikon invariant detector,
+based on Daikon version 5.2.11, released August 5, 2015.
+
+It supports exception handling.
 
 If you are working with a Daikon distribution downloaded from the Daikon
 website, then most everything is setup and ready to go.  See the 'doc'

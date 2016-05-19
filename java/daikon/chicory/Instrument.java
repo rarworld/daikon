@@ -719,8 +719,8 @@ public class Instrument implements ClassFileTransformer {
         // we write out the new StackMapTable.
         process_uninitialized_variable_info(il, false);
         print_stack_map_table("Final before Chicory.exception_handling");
- 
-        // BEST PLACE FOR TRY CATCH ADDING
+
+        // Insert the try-catch-block to catch delegated Exceptions 
         if(Chicory.exception_handling){
         	// Remember the end of the original Code.
         	InstructionHandle try_end = il.getEnd();
@@ -742,7 +742,9 @@ public class Instrument implements ClassFileTransformer {
         		int tagetIS = il.getByteCode().length;
         		InstructionHandle handler =  il.append(try_end, catch_il);
         		
-        		//Set the gaps in the ExceptionTable for Throw
+        		// Set the gaps in the ExceptionTable for Throw
+        		// ignore throw-Commands in the try-catch-block to not catch them and
+        		// trace/log theme twice
         		if(!throw_ils.isEmpty()){
 	        		InstructionHandle run_start = try_start;
 	        		for (InstructionHandle run_ih : throw_ils) {
@@ -755,11 +757,13 @@ public class Instrument implements ClassFileTransformer {
         			mg.addExceptionHandler(try_start, try_end, handler, ObjectType.getInstance("java.lang.Exception"));
         		}
         		
-        		// ADD StackMapEntry
+        		// ADD StackMapEntry for the handle-block
         	    StackMapTableEntry[] new_map = new StackMapTableEntry[stack_map_table.length + 1];
         	    StackMapType stackItem_type = new StackMapType(Constants.ITEM_Object, pgen.addClass("java.lang.Exception"), pgen.getConstantPool());
         	    StackMapType[] stackItem_types = {stackItem_type};
         	    
+        	    // To create an handle-block for the case, that more than the exception-variable must be added
+        	    // to the stackframe table, we need to read all Entries of the table
         	    Stack<StackMapType> localItems_types = new Stack<StackMapType>();
         	    
         	    // Start with Parameters as locals
@@ -793,6 +797,8 @@ public class Instrument implements ClassFileTransformer {
         	    // Keep track of the count of locals
         	    int runLocalCnt = newLocalCnt;
         	    int offset = 0;
+        	    
+        	    // traverse the stackframe table and create the stack for the new entry.
         	    for (int j = 0; j < stack_map_table.length; j++) {
         	    	StackMapTableEntry runSME = stack_map_table[j];
     	    		if( (offset - 1) <= try_start.getPosition() ){
@@ -804,8 +810,6 @@ public class Instrument implements ClassFileTransformer {
 						int addCnt = runFrameType - (Constants.APPEND_FRAME  - 1) ;
 						localItems_types.addAll(Arrays.asList(runSME.getTypesOfLocals()));
 						runLocalCnt += addCnt;
-//						localItems_types.push(runSME.getTypesOfLocals()[0]);
-//						runLocalCnt++;
 					}
 
 					if( runFrameType >= Constants.CHOP_FRAME && runFrameType <= Constants.CHOP_FRAME_MAX){
@@ -825,11 +829,10 @@ public class Instrument implements ClassFileTransformer {
 					
         	    	offset += runSME.getByteCodeOffsetDelta() + 1;
         	    	new_map[j] = runSME;
-//        	    	offset += stack_map_table[j].getByteCodeOffsetDelta() + 1;
-//					new_map[j] = stack_map_table[j];
 				}
         	    int goalOffset = tagetIS - offset;
 //        	    Are the locals the same?
+//        	    create SAME_LOCALS_1_STACK_ITEM_FRAME
         	    if(newLocalCnt == runLocalCnt){
         	    	int tmpTag = (Constants.SAME_LOCALS_1_STACK_ITEM_FRAME + goalOffset) > Constants.SAME_LOCALS_1_STACK_ITEM_FRAME_MAX
         	    				? Constants.SAME_LOCALS_1_STACK_ITEM_FRAME_EXTENDED

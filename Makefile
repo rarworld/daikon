@@ -719,6 +719,7 @@ plume-lib:
 	rm -rf java/utilMDE java/lib/utilMDE.jar
 	# Don't use an ssh URL because can't pull from it in cron jobs
 	git clone ${GIT_OPTIONS} https://github.com/mernst/plume-lib.git plume-lib
+	(cd plume-lib; git checkout tags/v1.0.7 -b tag107)
 
 .PHONY: plume-lib-update
 plume-lib-update: plume-lib

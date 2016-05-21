@@ -160,10 +160,6 @@ public class DeclWriter extends DaikonWriter {
                 printMethod(exitRoot,methodExitName(member,exitLoc.intValue()),
                             comp_info);
             }
-//            // Erstmal nur ein Exception. Später vlt differenzierter.
-//            if(mg.getExceptions().length > 0){
-//            	
-//            }
         }
 
         printClassPpt (cinfo, cinfo.class_name + ":::CLASS", comp_info);

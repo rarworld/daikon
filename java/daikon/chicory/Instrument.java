@@ -51,15 +51,15 @@ public class Instrument implements ClassFileTransformer {
   
   public static Map<Type, Byte> STACKMAP_TYPE = new HashMap<Type, Byte>();
   static{
-	STACKMAP_TYPE.put(Type.INT , Constants.ITEM_Integer);
-	STACKMAP_TYPE.put(Type.BOOLEAN , Constants.ITEM_Integer);
-	STACKMAP_TYPE.put(Type.BYTE , Constants.ITEM_Integer);
-	STACKMAP_TYPE.put(Type.CHAR, Constants.ITEM_Integer);
-	STACKMAP_TYPE.put(Type.DOUBLE , Constants.ITEM_Double);
-	STACKMAP_TYPE.put(Type.FLOAT , Constants.ITEM_Float);
-	STACKMAP_TYPE.put(Type.LONG , Constants.ITEM_Long);
-	STACKMAP_TYPE.put(Type.SHORT , Constants.ITEM_Integer);
-	STACKMAP_TYPE.put(Type.VOID , Constants.ITEM_Integer);
+	STACKMAP_TYPE.put(Type.INT , Const.ITEM_Integer);
+	STACKMAP_TYPE.put(Type.BOOLEAN , Const.ITEM_Integer);
+	STACKMAP_TYPE.put(Type.BYTE , Const.ITEM_Integer);
+	STACKMAP_TYPE.put(Type.CHAR, Const.ITEM_Integer);
+	STACKMAP_TYPE.put(Type.DOUBLE , Const.ITEM_Double);
+	STACKMAP_TYPE.put(Type.FLOAT , Const.ITEM_Float);
+	STACKMAP_TYPE.put(Type.LONG , Const.ITEM_Long);
+	STACKMAP_TYPE.put(Type.SHORT , Const.ITEM_Integer);
+	STACKMAP_TYPE.put(Type.VOID , Const.ITEM_Integer);
   }
   /** current Constant Pool * */
   static ConstantPoolGen pgen = null;
@@ -728,7 +728,7 @@ public class Instrument implements ClassFileTransformer {
 //        	// Is the method the constructor.
 //        	if(mg.getName().equals("<init>")){
 //        		// first command must be super (implicit or direct)
-//        		if(try_start.getNext().getInstruction().getOpcode() == Constants.INVOKESPECIAL){
+//        		if(try_start.getNext().getInstruction().getOpcode() == Const.INVOKESPECIAL){
 //        			try_start = try_start.getNext().getNext();
 //        			// step before the return
 //        			try_end = try_end.getPrev();
@@ -758,8 +758,8 @@ public class Instrument implements ClassFileTransformer {
         		}
         		
         		// ADD StackMapEntry for the handle-block
-        	    StackMapTableEntry[] new_map = new StackMapTableEntry[stack_map_table.length + 1];
-        	    StackMapType stackItem_type = new StackMapType(Constants.ITEM_Object, pgen.addClass("java.lang.Exception"), pgen.getConstantPool());
+        	    StackMapEntry[] new_map = new StackMapEntry[stack_map_table.length + 1];
+        	    StackMapType stackItem_type = new StackMapType(Const.ITEM_Object, pgen.addClass("java.lang.Exception"), pgen.getConstantPool());
         	    StackMapType[] stackItem_types = {stackItem_type};
         	    
         	    // To create an handle-block for the case, that more than the exception-variable must be added
@@ -771,7 +771,7 @@ public class Instrument implements ClassFileTransformer {
         	    // ADD THIS 
         	    if(!mg.isStatic()){
         	    	newLocalCnt++;
-        	    	localItems_types.push( new StackMapType(Constants.ITEM_Object,
+        	    	localItems_types.push( new StackMapType(Const.ITEM_Object,
         	    			pgen.addClass(mg.getClassName()), pgen.getConstantPool()) );
         	    }
         	    // ADD PARAMETERS
@@ -789,7 +789,7 @@ public class Instrument implements ClassFileTransformer {
         	    		localItems_types.push( new StackMapType(tmpTag, -1, pgen.getConstantPool()));
         	    		continue;
         	    	}
-        	    	localItems_types.push( new StackMapType(Constants.ITEM_Object,
+        	    	localItems_types.push( new StackMapType(Const.ITEM_Object,
         	    			 				pgen.addClass(runType.getSignature()), pgen.getConstantPool()) );
         	    }
         	    
@@ -800,45 +800,47 @@ public class Instrument implements ClassFileTransformer {
         	    
         	    // traverse the stackframe table and create the stack for the new entry.
         	    for (int j = 0; j < stack_map_table.length; j++) {
-        	    	StackMapTableEntry runSME = stack_map_table[j];
+        	    	StackMapEntry runSME = stack_map_table[j];
     	    		if( (offset - 1) <= try_start.getPosition() ){
     	    			newLocalCnt = runLocalCnt;
     	    		}
     	    		
     	    		int runFrameType = runSME.getFrameType();
-					if( runFrameType >= Constants.APPEND_FRAME && runFrameType <= Constants.APPEND_FRAME_MAX){
-						int addCnt = runFrameType - (Constants.APPEND_FRAME  - 1) ;
+					if( runFrameType >= Const.APPEND_FRAME && runFrameType <= Const.APPEND_FRAME_MAX){
+						int addCnt = runFrameType - (Const.APPEND_FRAME  - 1) ;
 						localItems_types.addAll(Arrays.asList(runSME.getTypesOfLocals()));
 						runLocalCnt += addCnt;
 					}
 
-					if( runFrameType >= Constants.CHOP_FRAME && runFrameType <= Constants.CHOP_FRAME_MAX){
-						int delCnt = (Constants.CHOP_FRAME_MAX + 1) - runFrameType;
+					if( runFrameType >= Const.CHOP_FRAME && runFrameType <= Const.CHOP_FRAME_MAX){
+						int delCnt = (Const.CHOP_FRAME_MAX + 1) - runFrameType;
 						for (int k = 0; k < delCnt; k++) {
 							localItems_types.pop();
 						}
 						runLocalCnt -= delCnt;
 					}
     	    		
-					if( runFrameType == Constants.FULL_FRAME){
+					if( runFrameType == Const.FULL_FRAME){
 						localItems_types.clear();
 						localItems_types.addAll(Arrays.asList(runSME.getTypesOfLocals()));
 						runLocalCnt = localItems_types.size();
 						fullFrameFound = true;
 					}
 					
-        	    	offset += runSME.getByteCodeOffsetDelta() + 1;
+        	    	offset += runSME.getByteCodeOffset() + 1;
         	    	new_map[j] = runSME;
 				}
         	    int goalOffset = tagetIS - offset;
 //        	    Are the locals the same?
-//        	    create SAME_LOCALS_1_STACK_ITEM_FRAME
+//        	    create SAME_LOCALS_1_STACK_ITEM_FRAME       	    
         	    if(newLocalCnt == runLocalCnt){
-        	    	int tmpTag = (Constants.SAME_LOCALS_1_STACK_ITEM_FRAME + goalOffset) > Constants.SAME_LOCALS_1_STACK_ITEM_FRAME_MAX
-        	    				? Constants.SAME_LOCALS_1_STACK_ITEM_FRAME_EXTENDED
-        	    				: (Constants.SAME_LOCALS_1_STACK_ITEM_FRAME + goalOffset) ;
-        	    	new_map[stack_map_table.length] = new StackMapTableEntry(tmpTag, goalOffset , 0,
-        	    		null, 1, stackItem_types, pgen.getConstantPool());
+        	    	int tmpTag = (Const.SAME_LOCALS_1_STACK_ITEM_FRAME + goalOffset) > Const.SAME_LOCALS_1_STACK_ITEM_FRAME_MAX
+        	    				? Const.SAME_LOCALS_1_STACK_ITEM_FRAME_EXTENDED
+        	    				: (Const.SAME_LOCALS_1_STACK_ITEM_FRAME + goalOffset) ;
+        	    	new_map[stack_map_table.length] = new StackMapEntry(tmpTag, goalOffset ,
+            	    		null, stackItem_types, pgen.getConstantPool());
+//        	    	new_map[stack_map_table.length] = new StackMapTableEntry(tmpTag, goalOffset , 0,
+//            	    		null, 1, stackItem_types, pgen.getConstantPool());
         	    }else{
         	    	if(localItems_types.size() >= newLocalCnt){
 	        	    	// Create FULL-FRAME-Entry
@@ -850,15 +852,20 @@ public class Instrument implements ClassFileTransformer {
 	        	    	
 	        	    	newlocalItems_types = localItems_types.toArray(newlocalItems_types);
 	        	    	
-	        	    	new_map[stack_map_table.length] = new StackMapTableEntry(Constants.FULL_FRAME, goalOffset , localsCnt,
-	        	    			newlocalItems_types, 1, stackItem_types, pgen.getConstantPool());
+	        	    	new_map[stack_map_table.length] = new StackMapEntry(Const.FULL_FRAME, goalOffset ,
+	        	    			newlocalItems_types, stackItem_types, pgen.getConstantPool());
+//	        	    	new_map[stack_map_table.length] = new StackMapTableEntry(Const.FULL_FRAME, goalOffset , localsCnt,
+//	        	    			newlocalItems_types, 1, stackItem_types, pgen.getConstantPool());
         	    	}else{
-        	    		//ERROR
-            	    	int tmpTag = (Constants.SAME_LOCALS_1_STACK_ITEM_FRAME + goalOffset) > Constants.SAME_LOCALS_1_STACK_ITEM_FRAME_MAX
-        	    				? Constants.SAME_LOCALS_1_STACK_ITEM_FRAME_EXTENDED
-        	    				: (Constants.SAME_LOCALS_1_STACK_ITEM_FRAME + goalOffset) ;
-        	    		new_map[stack_map_table.length] = new StackMapTableEntry(tmpTag, goalOffset , 0,
-                	    		null, 1, stackItem_types, pgen.getConstantPool());
+        	    		//ERROR but keep a valid Stackframe
+        	    		// Need to find out if it happens
+            	    	int tmpTag = (Const.SAME_LOCALS_1_STACK_ITEM_FRAME + goalOffset) > Const.SAME_LOCALS_1_STACK_ITEM_FRAME_MAX
+        	    				? Const.SAME_LOCALS_1_STACK_ITEM_FRAME_EXTENDED
+        	    				: (Const.SAME_LOCALS_1_STACK_ITEM_FRAME + goalOffset) ;
+            	    	new_map[stack_map_table.length] = new StackMapEntry(tmpTag, goalOffset ,
+                	    		null, stackItem_types, pgen.getConstantPool());
+//            	    	new_map[stack_map_table.length] = new StackMapTableEntry(tmpTag, goalOffset , 0,
+//                	    		null, 1, stackItem_types, pgen.getConstantPool());
         	    	}
         	    }
         	    
@@ -1005,7 +1012,7 @@ public class Instrument implements ClassFileTransformer {
 //    	return (null);
     
     switch (inst.getOpcode()) {
-      case Constants.ATHROW:
+      case Const.ATHROW:
         break;
 
       default:
@@ -1048,7 +1055,7 @@ public class Instrument implements ClassFileTransformer {
     
     il.append(call_enter_exit(c, "exitThrow", -1));
     il.append(InstructionFactory.createLoad(type, throw_loc.getIndex()));
-    il.append(InstructionFactory.ATHROW);
+    il.append(new ATHROW());
     return(il);
   }
   
@@ -2025,7 +2032,7 @@ public class Instrument implements ClassFileTransformer {
 
             break;
           
-          case Constants.ATHROW :
+          case Const.ATHROW :
         	// only do incremental lines if we don't have the line generator
         	if (line_number == last_line_number && foundLine == false)
               {

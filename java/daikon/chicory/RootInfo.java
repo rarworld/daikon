@@ -5,8 +5,6 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
-import org.apache.bcel.generic.Type;
-
 import daikon.Chicory;
 
 

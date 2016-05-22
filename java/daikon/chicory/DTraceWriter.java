@@ -126,7 +126,7 @@ public class DTraceWriter extends DaikonWriter
     /**
      * Prints the method exit program point in the dtrace file
      */
-    public void methodThrow(MethodInfo mi, int nonceVal, /*@Nullable*/ Object obj, Object[] args, Exception exception_val, int lineNum)
+    public void methodThrow(MethodInfo mi, int nonceVal, /*@Nullable*/ Object obj, Object[] args, Throwable exception_val, int lineNum)
     {
         if (Runtime.dtrace_closed)
             return;

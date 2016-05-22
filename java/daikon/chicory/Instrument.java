@@ -748,18 +748,18 @@ public class Instrument implements ClassFileTransformer {
         		if(!throw_ils.isEmpty()){
 	        		InstructionHandle run_start = try_start;
 	        		for (InstructionHandle run_ih : throw_ils) {
-	        			mg.addExceptionHandler(run_start, run_ih.getPrev(), handler, ObjectType.getInstance("java.lang.Exception"));
+	        			mg.addExceptionHandler(run_start, run_ih.getPrev(), handler, ObjectType.getInstance("java.lang.Throwable"));
 						run_start = run_ih.getNext();
 					}
 	        		if(!run_start.equals(handler) || run_start.getPosition() >= 0)
-	        			mg.addExceptionHandler(run_start, try_end, handler, ObjectType.getInstance("java.lang.Exception"));
+	        			mg.addExceptionHandler(run_start, try_end, handler, ObjectType.getInstance("java.lang.Throwable"));
         		}else{
-        			mg.addExceptionHandler(try_start, try_end, handler, ObjectType.getInstance("java.lang.Exception"));
+        			mg.addExceptionHandler(try_start, try_end, handler, ObjectType.getInstance("java.lang.Throwable"));
         		}
         		
         		// ADD StackMapEntry for the handle-block
         	    StackMapEntry[] new_map = new StackMapEntry[stack_map_table.length + 1];
-        	    StackMapType stackItem_type = new StackMapType(Const.ITEM_Object, pgen.addClass("java.lang.Exception"), pgen.getConstantPool());
+        	    StackMapType stackItem_type = new StackMapType(Const.ITEM_Object, pgen.addClass("java.lang.Throwable"), pgen.getConstantPool());
         	    StackMapType[] stackItem_types = {stackItem_type};
         	    
         	    // To create an handle-block for the case, that more than the exception-variable must be added
@@ -1022,7 +1022,7 @@ public class Instrument implements ClassFileTransformer {
     if (debug) 
       out.format ("FOUND A THROW");
     
-    Type type = Type.getType(Exception.class);
+    Type type = Type.getType(Throwable.class);
     InstructionList il = new InstructionList();
     LocalVariableGen throw_loc = get_throw_local(c.mgen, type);
     il.append(InstructionFactory.createDup(type.getSize()));
@@ -1048,7 +1048,7 @@ public class Instrument implements ClassFileTransformer {
 //			|| c.mgen.getName().contentEquals("<cinit>"))
 	  return (null);
 	  
-    Type type = Type.getType(Exception.class);
+    Type type = Type.getType(Throwable.class);
     InstructionList il = new InstructionList();
     LocalVariableGen throw_loc = get_throw_local(c.mgen, type);
     il.append(InstructionFactory.createStore(type, throw_loc.getIndex()));
@@ -1765,7 +1765,7 @@ public class Instrument implements ClassFileTransformer {
     // The Exception value
     // is stored in the local "exception__$trace2_val"
     if (method_name.equals ("exitThrow")) {
-      Type exception_type = Type.getType(Exception.class);
+      Type exception_type = Type.getType(Throwable.class);
       LocalVariableGen throw_local = get_throw_local(mgen, exception_type);
       il.append(InstructionFactory.createLoad(exception_type, throw_local.getIndex()));
       // push line number
@@ -1781,7 +1781,7 @@ public class Instrument implements ClassFileTransformer {
                                 object_arr_typ, Type.OBJECT, Type.INT};
     }else if (method_name.equals ("exitThrow")) {
         method_args = new Type[] {Type.OBJECT, Type.INT, Type.INT,
-                object_arr_typ, Type.getType(Exception.class), Type.INT};
+                object_arr_typ, Type.getType(Throwable.class), Type.INT};
     } else {
         method_args = new Type[] {Type.OBJECT, Type.INT, Type.INT,
                 object_arr_typ};

@@ -118,7 +118,7 @@ public class RootInfo extends DaikonVariableInfo
         RootInfo root = method_process(mi, depth);
 
         // add a new ReturnInfo object to the traversal tree
-        Class<?> returnType = Exception.class;
+        Class<?> returnType = Throwable.class;
         DaikonVariableInfo retInfo = new ThrowInfo(returnType);
         root.addChild(retInfo);
         

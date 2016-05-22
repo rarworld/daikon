@@ -276,7 +276,7 @@ public class Runtime
      * @param exitLineNum - The line number at which this method exited by throw (-1 for throws)
      */
     public static synchronized void exitThrow(/*@Nullable*/ Object obj, int nonce, int mi_index,
-                            Object[] args, Exception exception_val, int exitLineNum) {
+                            Object[] args, Throwable exception_val, int exitLineNum) {
       
       if (debug) {
           MethodInfo mi = methods.get(mi_index);

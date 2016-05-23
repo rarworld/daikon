@@ -656,7 +656,7 @@ public class Instrument implements ClassFileTransformer {
 
           // If not Return maybe it is an Throw
           if(new_il == null ){
-        	  new_il = add_throw_instrumentation(fullClassName, inst, context, throwIter);
+        	  new_il = add_throw_instrumentation(fullClassName, inst, context,shouldIncIter, throwIter);
         	  if (new_il != null) throw_ils.add(ih);
           }
           
@@ -1006,7 +1006,7 @@ public class Instrument implements ClassFileTransformer {
    */
   private /*@Nullable*/ InstructionList
   add_throw_instrumentation (String fullClassName, Instruction inst,
-      MethodContext c, Iterator<Integer> throwIter) {
+      MethodContext c, Iterator<Boolean> shouldIncIter, Iterator<Integer> throwIter) {
 
 //    if(Chicory.exception_handling)
 //    	return (null);
@@ -1021,6 +1021,14 @@ public class Instrument implements ClassFileTransformer {
     
     if (debug) 
       out.format ("FOUND A THROW");
+    
+    if (!shouldIncIter.hasNext())
+        throw new RuntimeException("Not enough entries in shouldIncIter");
+
+    boolean shouldInclude = shouldIncIter.next();
+
+    if (!shouldInclude)
+        return null;
     
     Type type = Type.getType(Throwable.class);
     InstructionList il = new InstructionList();
@@ -1969,7 +1977,7 @@ public class Instrument implements ClassFileTransformer {
     // throw opcode
     List<Integer> throw_locs = new ArrayList<Integer>();
 
-    // tells whether each exit loc in the method is included or not (based on filters)
+    // tells whether each exit/throw loc in the method is included or not (based on filters)
     List<Boolean> isIncluded = new ArrayList<Boolean>();
 
     // log ("Looking for exit points in %s%n", mgen.getName());
@@ -2046,7 +2054,11 @@ public class Instrument implements ClassFileTransformer {
               {
                 shouldInclude = true;
                 throw_locs.add(new Integer(line_number));
+                
+                isIncluded.add(true);
               }
+            else
+            	isIncluded.add(false);
         	  break;
           
           default :
